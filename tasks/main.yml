@@ -1,0 +1,16 @@
+---
+- name: apt update
+  apt: update_cache=yes
+  when: update | default(False) | bool
+
+- name: upgrade packages
+  script: selectively-upgrade.py {{ packages }}
+  register: upgrade_result
+  changed_when: upgrade_result.rc == 0
+  failed_when: upgrade_result.rc != 0 and upgrade_result.rc != 2
+
+- debug: var=upgrade_result.stdout
+  when: upgrade_result.stdout and not upgrade_result.failed
+
+- debug: var=upgrade_result.stderr
+  when: upgrade_result.stderr and not upgrade_result.failed
