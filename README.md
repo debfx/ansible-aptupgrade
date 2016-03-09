@@ -24,6 +24,27 @@ The module has the following parameters:
 
   A comma separated list of source packages to upgrade.
 
+- origins
+
+  A comma separated list of origins where are packages are upgraded from.
+  Remember to escape commas in a single origin filter ("," -> "\,")
+
+  The accepted keywords are:
+  - a,archive,suite (eg, "stable")
+  - c,component     (eg, "main", "contrib", "non-free")
+  - l,label         (eg, "Debian", "Debian-Security")
+  - o,origin        (eg, "Debian", "Unofficial Multimedia Packages")
+  - n,codename      (eg, "jessie", "jessie-updates")
+  - site            (eg, "http.debian.net")
+
+  The following variables are substituted:
+  - {distro_id}        Installed distro name (eg. "Debian")
+  - {distro_codename}  Installed codename (eg, "jessie")
+
+  Examples:
+  - origin=Debian\,codename={distro_codename}\,label=Debian-Security
+  - o=Debian\,n=jessie
+
 ## Example invocations
 
 - ansible -M . -m apt_upgrade -a "update_cache=True packages=mutt,rsyslog"

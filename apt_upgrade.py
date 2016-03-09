@@ -30,6 +30,12 @@ except ImportError:
     HAS_PYTHON_APT = False
 
 LOGFILE_DPKG = "/var/run/ansible_apt_upgrade_dpkg.log"
+_DISTRO_CODENAME = None
+_DISTRO_ID = None
+
+
+class Error(Exception):
+    pass
 
 
 class LogInstallProgress(apt.progress.base.InstallProgress):
@@ -108,16 +114,98 @@ class LogInstallProgress(apt.progress.base.InstallProgress):
         return pid
 
 
-def matches_input_pkg(pkg, params):
-    for allowed in params["packages"]:
+def get_distro_codename():
+    global _DISTRO_CODENAME
+
+    if _DISTRO_CODENAME is None:
+        try:
+            _DISTRO_CODENAME = subprocess.check_output(["lsb_release", "-c", "-s"], universal_newlines=True).strip()
+        except (OSError, subprocess.CalledProcessError) as e:
+            raise Error("Failed to run lsb_release: " + str(e))
+
+    return _DISTRO_CODENAME
+
+def get_distro_id():
+    global _DISTRO_ID
+
+    if _DISTRO_ID is None:
+        try:
+            _DISTRO_ID = subprocess.check_output(["lsb_release", "-i", "-s"], universal_newlines=True).strip()
+        except (OSError, subprocess.CalledProcessError) as e:
+            raise Error("Failed to run lsb_release: " + str(e))
+
+    return _DISTRO_ID
+
+def substitute(line):
+    """ substitude known mappings and return a new string
+    """
+    value = line.replace("{distro_codename}", get_distro_codename())
+    value = value.replace("{distro_id}", get_distro_id())
+    return value
+
+def match_whitelist_string(whitelist, origin):
+    """
+    take a whitelist string in the form "origin=Debian,label=Debian-Security"
+    and match against the given python-apt origin. A empty whitelist string
+    never matches anything.
+    """
+    whitelist = whitelist.strip()
+    if whitelist == "":
+        # empty match string matches nothing
+        return False
+    res = True
+    # make "\," the html quote equivalent
+    whitelist = whitelist.replace("\,", "%2C")
+    for token in whitelist.split(","):
+        # strip and unquote the "," back
+        try:
+            (what, value) = [s.strip().replace("%2C", ",")
+                            for s in token.split("=")]
+        except ValueError:
+            return False
+        # support substitution here as well
+        value = substitute(value)
+        # first char is apt-cache policy output, send is the name
+        # in the Release file
+        if what in ("o", "origin"):
+            res &= fnmatch.fnmatch(origin.origin, value)
+        elif what in ("l", "label"):
+            res &= fnmatch.fnmatch(origin.label, value)
+        elif what in ("a", "suite", "archive"):
+            res &= fnmatch.fnmatch(origin.archive, value)
+        elif what in ("c", "component"):
+            res &= fnmatch.fnmatch(origin.component, value)
+        elif what in ("site",):
+            res &= fnmatch.fnmatch(origin.site, value)
+        elif what in ("n", "codename",):
+            res &= fnmatch.fnmatch(origin.codename, value)
+        else:
+            return False
+
+    return res
+
+def is_allowed_origin(ver, allowed_origins):
+    if not ver:
+        return False
+    for origin in ver.origins:
+        for allowed in allowed_origins:
+            if match_whitelist_string(allowed, origin):
+                return True
+    return False
+
+def matches_input_pkg(pkg, allowed_packages, allowed_sources, allowed_origins):
+    for allowed in allowed_packages:
         if fnmatch.fnmatchcase(pkg.shortname, allowed):
             return True
 
     source = pkg.candidate.source_name
     if source:
-        for allowed in params["sources"]:
+        for allowed in allowed_sources:
             if fnmatch.fnmatchcase(source, allowed):
                 return True
+
+    if is_allowed_origin(pkg.candidate, allowed_origins):
+        return True
 
     return False
 
@@ -131,9 +219,10 @@ def main():
             update_cache = dict(default=False, aliases=['update-cache'], type='bool'),
             cache_valid_time = dict(type='int'),
             packages = dict(default=[], type='list'),
-            sources = dict(default=[], type='list')
+            sources = dict(default=[], type='list'),
+            origins = dict(default=[], type='list'),
         ),
-        required_one_of = [['packages', 'sources']],
+        required_one_of = [['packages', 'sources', 'origins']],
         supports_check_mode = True
     )
 
@@ -187,7 +276,7 @@ def main():
 
         for pkg in cache:
             if pkg.is_upgradable and not is_package_held_back(pkg):
-                if matches_input_pkg(pkg, params):
+                if matches_input_pkg(pkg, params["packages"], params["sources"], params["origins"]):
                     try:
                         pkg.mark_upgrade()
                     except SystemError, e:
@@ -199,7 +288,7 @@ def main():
             module.exit_json(changed=False, cache_updated=updated_cache, cache_update_time=updated_cache_time, skipped_packages=",".join(skip_packages))
 
         for pkg in cache.get_changes():
-            if not matches_input_pkg(pkg, params):
+            if not matches_input_pkg(pkg, params["packages"], params["sources"], params["origins"]):
                 module.fail_json(msg="No safe upgrade possible. State of package '" + pkg.name + "' would be changed.")
 
         if os.path.isfile(LOGFILE_DPKG):
@@ -220,6 +309,8 @@ def main():
         module.fail_json(msg="Failed to lock apt for exclusive operation")
     except apt.cache.FetchFailedException:
         module.fail_json(msg="Could not fetch updated apt files")
+    except Error as e:
+        module.fail_json(msg=str(e))
 
 
 # import module snippets
