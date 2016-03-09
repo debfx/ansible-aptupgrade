@@ -221,8 +221,9 @@ def main():
             packages = dict(default=[], type='list'),
             sources = dict(default=[], type='list'),
             origins = dict(default=[], type='list'),
+            security = dict(default=False, type='bool'),
         ),
-        required_one_of = [['packages', 'sources', 'origins']],
+        required_one_of = [['packages', 'sources', 'origins', 'security']],
         supports_check_mode = True
     )
 
@@ -274,9 +275,16 @@ def main():
 
         skip_packages = []
 
+        origins = params["origins"]
+        if params["security"]:
+            if get_distro_id() == "Debian":
+                origins.append("origin=Debian,codename={distro_codename},label=Debian-Security")
+            elif get_distro_id() == "Ubuntu":
+                origins.append("origin=Ubuntu,codename={distro_codename},suite={distro_codename}-security")
+
         for pkg in cache:
             if pkg.is_upgradable and not is_package_held_back(pkg):
-                if matches_input_pkg(pkg, params["packages"], params["sources"], params["origins"]):
+                if matches_input_pkg(pkg, params["packages"], params["sources"], origins):
                     try:
                         pkg.mark_upgrade()
                     except SystemError, e:
@@ -288,7 +296,7 @@ def main():
             module.exit_json(changed=False, cache_updated=updated_cache, cache_update_time=updated_cache_time, skipped_packages=",".join(skip_packages))
 
         for pkg in cache.get_changes():
-            if not matches_input_pkg(pkg, params["packages"], params["sources"], params["origins"]):
+            if not matches_input_pkg(pkg, params["packages"], params["sources"], origins):
                 module.fail_json(msg="No safe upgrade possible. State of package '" + pkg.name + "' would be changed.")
 
         if os.path.isfile(LOGFILE_DPKG):

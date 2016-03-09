@@ -45,6 +45,11 @@ The module has the following parameters:
   - origin=Debian\,codename={distro_codename}\,label=Debian-Security
   - o=Debian\,n=jessie
 
+- security (bool, defaults to False)
+
+  Shortcut for adding the distro provided security repo  to origins.
+  Works only on Debian and Ubuntu.
+
 ## Example invocations
 
 - ansible -M . -m apt_upgrade -a "update_cache=True packages=mutt,rsyslog"
