@@ -1,36 +1,31 @@
-# Ansible Role: Selectively upgrade packages on Debian
+# Ansible Module: Selectively upgrade packages on Debian
 
-An Ansible role that upgrades a specific set of packages on Debian systems.
+An Ansible module that upgrades a specific set of packages on Debian systems.
+It will only try to upgrade the packages you specify. If other packages are
+pulled in by the upgrade it will abort.
 
 ## Requirements
 
 The package python-apt needs to be installed on target hosts.
 
-## Role variables
+## Module variables
 
-The role has two parameters:
+The module has the following parameters:
 
-- update (bool, defaults to False)
+- update_cache (bool, defaults to False)
 
   Run apt-get update before upgrading packages.
 
-- packages (required)
+- packages
 
-  A comma (or space) separated list of packages to upgrade.
-  It supports globbing and selecting whole source packages through src:&lt;name&gt;.
+  A comma separated list of binary packages to upgrade.
 
-  The role will abort before upgrading if other packages would have to be
-  upgraded or installed.
+- sources
 
-## Example playbook
-
-    - hosts: all
-      gather_facts: False
-      roles:
-        - aptupgrade
+  A comma separated list of source packages to upgrade.
 
 ## Example invocations
 
-- ansible-playbook upgrade.yml -e "update=True packages=mutt,rsyslog"
-- ansible-playbook upgrade.yml -e "update=True packages=curl,libcurl*"
-- ansible-playbook upgrade.yml -e "update=False packages=src:curl"
+- ansible -M . -m apt_upgrade -a "update_cache=True packages=mutt,rsyslog"
+- ansible -M . -m apt_upgrade -a "update_cache=True packages=curl,libcurl*"
+- ansible -M . -m apt_upgrade -a "update_cache=False sources=curl"
