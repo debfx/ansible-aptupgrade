@@ -47,8 +47,14 @@ The module has the following parameters:
 
 - security (bool, defaults to False)
 
-  Shortcut for adding the distro provided security repo  to origins.
+  Shortcut for adding the distro provided security repo to origins.
   Works only on Debian and Ubuntu.
+
+- official (boot, defaults to False)
+
+  Shortcut for adding the distro provided release and update repo to origins.
+  Works only on Debian and Ubuntu.
+  Notably this doesn't include backports.
 
 ## Example invocations
 

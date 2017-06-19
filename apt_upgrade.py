@@ -223,8 +223,9 @@ def main():
             sources = dict(default=[], type='list'),
             origins = dict(default=[], type='list'),
             security = dict(default=False, type='bool'),
+            official = dict(default=False, type='bool'),
         ),
-        required_one_of = [['packages', 'sources', 'origins', 'security']],
+        required_one_of = [['packages', 'sources', 'origins', 'security', 'official']],
         supports_check_mode = True
     )
 
@@ -277,11 +278,19 @@ def main():
         skip_packages = []
 
         origins = params["origins"]
-        if params["security"]:
+        if params["security"] or params["official"]:
             if get_distro_id() == "Debian":
                 origins.append("origin=Debian,codename={distro_codename},label=Debian-Security")
             elif get_distro_id() == "Ubuntu":
                 origins.append("origin=Ubuntu,codename={distro_codename},suite={distro_codename}-security")
+
+        if params["official"]:
+            if get_distro_id() == "Debian":
+                origins.append("origin=Debian,codename={distro_codename},label=Debian")
+                origins.append("origin=Debian,codename={distro_codename}-updates,label=Debian")
+            elif get_distro_id() == "Ubuntu":
+                origins.append("origin=Ubuntu,codename={distro_codename},suite={distro_codename}")
+                origins.append("origin=Ubuntu,codename={distro_codename},suite={distro_codename}-updates")
 
         for pkg in cache:
             if pkg.is_upgradable and not is_package_held_back(pkg):
