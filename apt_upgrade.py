@@ -305,9 +305,13 @@ def main():
         if not cache.get_changes():
             module.exit_json(changed=False, cache_updated=updated_cache, cache_update_time=updated_cache_time, skipped_packages=",".join(skip_packages))
 
+        diff = ""
+
         for pkg in cache.get_changes():
             if not matches_input_pkg(pkg, params["packages"], params["sources"], origins):
                 module.fail_json(msg="No safe upgrade possible. State of package '" + pkg.name + "' would be changed.")
+
+            diff += "{}: {} -> {}\n".format(pkg.name, pkg.installed.version, pkg.candidate.version)
 
         if os.path.isfile(LOGFILE_DPKG):
             os.remove(LOGFILE_DPKG)
@@ -322,7 +326,7 @@ def main():
         else:
             dpkg_log = ""
 
-        module.exit_json(changed=True, cache_updated=updated_cache, cache_update_time=updated_cache_time, log=dpkg_log, skipped_packages=",".join(skip_packages))
+        module.exit_json(changed=True, cache_updated=updated_cache, cache_update_time=updated_cache_time, log=dpkg_log, skipped_packages=",".join(skip_packages), diff={"prepared": diff})
     except apt.cache.LockFailedException:
         module.fail_json(msg="Failed to lock apt for exclusive operation")
     except apt.cache.FetchFailedException:
