@@ -311,7 +311,12 @@ def main():
             if not matches_input_pkg(pkg, params["packages"], params["sources"], origins):
                 module.fail_json(msg="No safe upgrade possible. State of package '" + pkg.name + "' would be changed.")
 
-            diff += "{}: {} -> {}\n".format(pkg.name, pkg.installed.version, pkg.candidate.version)
+            if not pkg.is_installed:
+                original_version = "NOT INSTALLED"
+            else:
+                original_version = pkg.installed.version
+
+            diff += "{}: {} -> {}\n".format(pkg.name, original_version, pkg.candidate.version)
 
         if os.path.isfile(LOGFILE_DPKG):
             os.remove(LOGFILE_DPKG)
